@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Live Preview</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    img {
+      max-width: 100%;
+      max-height: 100%;
+    }
+  </style>
+</head>
+<body>
+  <img id="preview" src="" alt="Waiting for image..." />
+  <script>
+    const baseDir = '.'; // We're serving from txt2img-images
+    const img = document.getElementById('preview');
+    let lastImage = '';
+
+    async function getNewestImage(callback) {
+      try {
+        const res = await fetch(baseDir);
+        const text = await res.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, 'text/html');
+
+        const folders = Array.from(doc.querySelectorAll('a'))
+          .map(a => a.getAttribute('href'))
+          .filter(name => /^\d{4}-\d{2}-\d{2}\/?$/.test(name))
+          .sort()
+          .reverse();
+
+        if (!folders.length) return;
+
+        const newestFolder = folders[0].replace('/', '');
+
+        const folderRes = await fetch(`${baseDir}/${newestFolder}`);
+        const folderText = await folderRes.text();
+        const folderDoc = parser.parseFromString(folderText, 'text/html');
+
+        const images = Array.from(folderDoc.querySelectorAll('a'))
+          .map(a => a.getAttribute('href'))
+          .filter(name => /\.(png|jpg|jpeg|webp)$/i.test(name))
+          .sort()
+          .reverse();
+
+        if (!images.length) return;
+
+        const newestImage = `${newestFolder}/${images[0]}`;
+
+        if (newestImage !== lastImage) {
+          lastImage = newestImage;
+          callback(newestImage);
+        }
+
+      } catch (err) {
+        console.error('Error fetching latest image:', err);
+      }
+    }
+
+    function updateImage() {
+      getNewestImage((path) => {
+        img.src = path + '?t=' + Date.now(); // Bypass cache
+      });
+    }
+
+    setInterval(updateImage, 250);
+  </script>
+</body>
+</html>
